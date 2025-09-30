@@ -39,7 +39,12 @@ namespace efcoreApp.Controllers
                 return NotFound();
             }
 
-            var ogr = await _context.Ogrenciler.FindAsync(id); //ogrenciler modelinin id sine göre arama yapıyoruz buna alternatif olarakta
+            var ogr = await _context
+            .Ogrenciler
+            .Include(o => o.KursKayitlari)
+            .ThenInclude(o => o.Kurs) //gitmiş olduğumuz modelden başka bir modele geçiş yapacağımız içini yani doğrudan öğrencilerle bağlantılı olan modle gitmediğimiz için theninclude kullanılır.
+            .FirstOrDefaultAsync(o => o.OgrenciId == id);
+            //ogrenciler modelinin id sine göre arama yapıyoruz buna alternatif olarakta
             //var ogr = await _context.Ogrenciler.FirstOrDefaultAsync(o => o.OgrenciId == id); bu da sadece id değil başka bir kritere göre de arama yapabiliriz. İlk eşleşen ilk kaydı geriye gönderir.
             if (ogr == null)
             {
