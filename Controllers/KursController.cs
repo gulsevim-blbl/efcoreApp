@@ -1,5 +1,7 @@
 using efcoreApp.Data;
+using efcoreApp.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace efcoreApp.Controllers
@@ -15,22 +17,29 @@ namespace efcoreApp.Controllers
         //Kurs Listelemek için Index metodu
         public async Task<IActionResult> Index()
         {
-            var kurslar = await _context.Kurslar.ToListAsync();
+            var kurslar = await _context.Kurslar.Include(k => k.Ogretmen).ToListAsync();
             return View(kurslar);
         }
         //Kurs Eklemek için Create metodu
-        public IActionResult Create()
+        public async Task<IActionResult> Create()
         {
+            ViewBag.Ogretmenler = new SelectList(await _context.Ogretmenler.ToListAsync(), "OgretmenId", "AdSoyad");
             return View();
         }
         //Kurs Eklemek için Create metodu
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Kurs model)
+        public async Task<IActionResult> Create(KursViewModel model)
         {
-            _context.Kurslar.Add(model);
-            await _context.SaveChangesAsync();
-            return RedirectToAction("Index");
+            if (ModelState.IsValid)
+            {
+                _context.Kurslar.Add(new Kurs() { KursId = model.KursId, Baslik = model.Baslik, OgretmenId = model.OgretmenId });
+                await _context.SaveChangesAsync();
+                return RedirectToAction("Index");
+            }
+            ViewBag.Ogretmenler = new SelectList(await _context.Ogretmenler.ToListAsync(), "OgretmenId", "AdSoyad");
+            return View(model);
+           
         }
         //Kurs Güncellemek için Edit metodu
         [HttpGet]
@@ -50,14 +59,30 @@ namespace efcoreApp.Controllers
             {
                 return NotFound();
             }
-            return View(kurs);
+
+            var vm = new KursViewModel
+            {
+                KursId = kurs.KursId,
+                Baslik = kurs.Baslik,
+                OgretmenId = kurs.OgretmenId,
+                KursKayitlari = kurs.KursKayitlari
+            };
+
+            ViewBag.Ogretmenler = new SelectList(
+                await _context.Ogretmenler.ToListAsync(),
+                "OgretmenId",
+                "AdSoyad",
+                kurs.OgretmenId
+            );
+
+            return View(vm);
 
         }
 
 
         [HttpPost]
-        [ValidateAntiForgeryToken] //side Attacks için güvenlik önlemi
-        public async Task<IActionResult> Edit(int? id, Kurs model)
+        [ValidateAntiForgeryToken] // CSRF için güvenlik
+        public async Task<IActionResult> Edit(int? id, KursViewModel model)
         {
             if (id != model.KursId)
             {
@@ -68,8 +93,14 @@ namespace efcoreApp.Controllers
             {
                 try
                 {
-                    _context.Update(model);
+                    var kurs = await _context.Kurslar.FindAsync(model.KursId);
+                    if (kurs == null) return NotFound();
+
+                    kurs.Baslik = model.Baslik;
+                    kurs.OgretmenId = model.OgretmenId;
+
                     await _context.SaveChangesAsync();
+                    return RedirectToAction("Index");
                 }
                 catch (DbUpdateException)
                 {
@@ -82,13 +113,20 @@ namespace efcoreApp.Controllers
                         throw;
                     }
                 }
-                return RedirectToAction("Index");
             }
-            return View(model);
 
+            // Hata olursa tekrar öğretmen listesini doldur
+            ViewBag.Ogretmenler = new SelectList(
+                await _context.Ogretmenler.ToListAsync(),
+                "OgretmenId",
+                "AdSoyad",
+                model.OgretmenId
+            );
+
+            return View(model);
         }
 
-       //Kursu silmeden önce verdiğimiz bir fırsat ver
+        //Kursu silmeden önce verdiğimiz bir fırsat ver
         [HttpGet]
         public async Task<IActionResult> Delete(int? id)
         {
